@@ -1,0 +1,17 @@
+Agent Stack Optimizer
+Copyright (c) 2026 davidesilver
+
+Original Python orchestration, telemetry adapters, setup and tests written for this project.
+PDF and statusline scripts adapted from the author's existing ai-config scripts.
+The PDF text-first workflow was inspired by Riccardo Belli Contarini's resources;
+no external source code was imported from those resources.
+The public handoff skill is a new implementation; the private personal handoff skill
+is retained locally and is not distributed in this repository.
+
+Design references, not bundled code:
+- https://github.com/kunaltulsidasani/claude-reimagined
+- https://github.com/affaan-m/ECC
+- https://github.com/rtk-ai/rtk
+- https://github.com/mksglu/context-mode
+
+Optional external tools retain their own licenses. context-mode uses Elastic License 2.0.
