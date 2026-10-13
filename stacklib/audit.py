@@ -57,7 +57,9 @@ def check(home):
             registered = any(h.get("command") == command("pdf_to_text.py") for e in d.get("hooks", {}).get("PreToolUse", []) if e.get("matcher") == "Read" for h in e.get("hooks", []))
             results.append({"check": "claude PDF hook", "ok": registered})
             results.append({"check": "PDF extractor installed", "ok": bool(shutil.which("pdftotext") or __import__("importlib.util", fromlist=["find_spec"]).find_spec("pypdf"))})
-        for skill in ("setup", "handoff"):
+        if agent == "claude" and "markitdown" in modules:
+            results.append({"check": "markitdown CLI installed", "ok": bool(shutil.which("markitdown"))})
+        for skill in ("setup", "handoff", "markitdown"):
             if skill in modules:
                 location = ".claude/skills" if agent == "claude" else ".agents/skills"
                 results.append({"check": f"{agent} skill {skill}", "ok": (Path(home) / location / skill / "SKILL.md").is_file()})

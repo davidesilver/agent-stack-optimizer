@@ -96,7 +96,7 @@ def install(home, cfg, dry=False):
         skill_dirs.append(".claude/skills")
     if "codex" in cfg["agents"]:
         skill_dirs.append(".agents/skills")  # one canonical location, no second Codex copy
-    for sk in ("handoff", "setup"):
+    for sk in ("handoff", "setup", "markitdown"):
         if sk not in modules:
             continue
         body = (ROOT / "skills" / sk / "SKILL.md").read_text().replace("{{ROOT}}", str(ROOT))

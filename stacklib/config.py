@@ -2,7 +2,7 @@ import json
 import math
 from pathlib import Path
 
-MODULES = {"handoff", "pdf", "statusline", "rules", "setup"}
+MODULES = {"handoff", "pdf", "statusline", "rules", "setup", "markitdown"}
 DEFAULT = {"schema": 1, "agents": ["claude", "codex"],
            "modules": sorted(MODULES), "context": {"unit": "percent", "warn": 30,
            "max": 35, "mode": "handoff", "window_tokens": None}}

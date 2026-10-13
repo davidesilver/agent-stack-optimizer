@@ -9,10 +9,15 @@ Vie d'uscita (un hook che trasforma i dati non deve mai chiudere la porta al dat
    il file viene cancellato e il PDF passa intero una sola volta. Lo dice anche l'intestazione del .txt.
 3. Estrazione fallita o libreria mancante: esce in silenzio e il Read normale fa il suo lavoro.
 
-Richiede pypdf (pip install pypdf) oppure pdftotext (poppler) nel PATH.
+Stessa idea per Word, PowerPoint, Excel ed EPUB: il Read nativo non li legge, quindi vengono convertiti in
+Markdown con Microsoft markitdown (`uv tool install "markitdown[pdf,docx,pptx,xlsx,xls]"`). Se markitdown manca
+o la conversione fallisce, il Read normale fa il suo lavoro (via d'uscita 3).
+
+Richiede pypdf (pip install pypdf), markitdown oppure pdftotext (poppler) per i PDF; markitdown per gli Office.
 """
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -23,6 +28,20 @@ MIN_CHARS_PER_PAGE = 200
 CACHE = Path.home() / ".claude" / "pdf-text-cache"
 SENTINEL = Path.home() / ".claude" / "pdf-visual-once"
 MAX_AGE_DAYS = 30
+OFFICE = {".docx", ".pptx", ".xlsx", ".xls", ".epub"}
+
+
+def markitdown(path: Path):
+    exe = shutil.which("markitdown")
+    if not exe:
+        return ""
+    env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+    try:
+        out = subprocess.run([exe, str(path)], capture_output=True, text=True, encoding="utf-8",
+                             errors="ignore", env=env, timeout=90)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout if out.returncode == 0 else ""
 
 
 def extract(pdf: Path):
@@ -34,6 +53,9 @@ def extract(pdf: Path):
         return pages, body, "pypdf"
     except Exception:
         pass
+    body = markitdown(pdf)
+    if body.strip():
+        return max(body.count("") + 1, 1), body, "markitdown"
     exe = shutil.which("pdftotext")
     if exe:
         out = subprocess.run([exe, "-layout", str(pdf), "-"], capture_output=True, text=True, encoding="utf-8", errors="ignore")
@@ -59,9 +81,10 @@ def main():
             return 0
         tool_input = dict(data.get("tool_input") or {})
         pdf = Path(tool_input.get("file_path", ""))
-        if pdf.suffix.lower() != ".pdf" or not pdf.is_file():
+        suffix = pdf.suffix.lower()
+        if (suffix != ".pdf" and suffix not in OFFICE) or not pdf.is_file():
             return 0
-        if SENTINEL.exists():
+        if suffix == ".pdf" and SENTINEL.exists():
             SENTINEL.unlink()
             return 0  # via d'uscita 2: PDF intero una volta sola
 
@@ -71,13 +94,19 @@ def main():
         clean_cache()
         txt = CACHE / f"{key}.txt"
         if not txt.exists():
-            pages, body, how = extract(pdf)
-            if pages == 0 or len(body) < MIN_CHARS_PER_PAGE * pages:
-                return 0  # via d'uscita 1 e 3
-            header = (
-                f"[Testo estratto da {pdf.name}: {pages} pagine, metodo {how}. Le immagini del PDF NON sono incluse. "
-                f"Per vedere grafici, firme o layout: esegui `touch ~/.claude/pdf-visual-once` e rileggi il PDF originale.]\n\n"
-            )
+            if suffix in OFFICE:
+                body = markitdown(pdf)
+                if not body.strip():
+                    return 0  # via d'uscita 3
+                header = f"[Convertito da {pdf.name} in Markdown con markitdown. Immagini e formattazione non sono incluse.]\n\n"
+            else:
+                pages, body, how = extract(pdf)
+                if pages == 0 or len(body) < MIN_CHARS_PER_PAGE * pages:
+                    return 0  # via d'uscita 1 e 3
+                header = (
+                    f"[Testo estratto da {pdf.name}: {pages} pagine, metodo {how}. Le immagini del PDF NON sono incluse. "
+                    f"Per vedere grafici, firme o layout: esegui `touch ~/.claude/pdf-visual-once` e rileggi il PDF originale.]\n\n"
+                )
             txt.write_text(header + body, encoding="utf-8")
         pages_note = txt.read_text(encoding="utf-8", errors="ignore")[:120]
         tool_input["file_path"] = str(txt)
@@ -87,7 +116,8 @@ def main():
                 "hookEventName": "PreToolUse",
                 "updatedInput": tool_input,
             },
-            "systemMessage": f"PDF {pdf.name} letto come testo (cache {txt.name}). Per il PDF visivo: touch ~/.claude/pdf-visual-once e rileggi.",
+            "systemMessage": f"{pdf.name} letto come testo (cache {txt.name})."
+            + (" Per il PDF visivo: touch ~/.claude/pdf-visual-once e rileggi." if suffix == ".pdf" else ""),
         }))
     except Exception:
         return 0  # via d'uscita 3

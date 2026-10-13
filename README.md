@@ -4,7 +4,7 @@ A small, reversible setup for Claude Code and Codex. Choose context thresholds, 
 
 ## Requirements
 
-Python 3.10+; an existing Claude Code and/or Codex installation. PDF extraction needs `pypdf` or `pdftotext`. Core has no third-party Python dependencies. macOS tested locally; Linux and Windows CI are configured, with live client behavior still requiring verification on each platform.
+Python 3.10+; an existing Claude Code and/or Codex installation. PDF extraction needs `pypdf`, `markitdown` or `pdftotext`; Word/PowerPoint/Excel/EPUB conversion and the `markitdown` module need [Microsoft markitdown](https://github.com/microsoft/markitdown) (`uv tool install "markitdown[pdf,docx,pptx,xlsx,xls,outlook]"`). Core has no third-party Python dependencies. macOS tested locally; Linux and Windows CI are configured, with live client behavior still requiring verification on each platform.
 
 ## Quick start
 
@@ -22,8 +22,8 @@ On Windows use `python`. Keep the checkout in a stable location: hooks point to 
 Choose exactly the same flags for preview and application when using the noninteractive CLI:
 
 ```sh
-python3 stack.py setup --agents claude,codex --modules handoff,pdf,statusline,setup --warn 50 --max 60 --dry-run
-python3 stack.py setup --agents claude,codex --modules handoff,pdf,statusline,setup --warn 50 --max 60
+python3 stack.py setup --agents claude,codex --modules handoff,pdf,statusline,setup,markitdown --warn 50 --max 60 --dry-run
+python3 stack.py setup --agents claude,codex --modules handoff,pdf,statusline,setup,markitdown --warn 50 --max 60
 python3 stack.py setup --unit tokens --warn 60000 --max 80000 --mode warn
 ```
 
@@ -36,7 +36,8 @@ Claude window detection uses the client's statusline data; Codex uses session te
 | Module | Behavior |
 |---|---|
 | `handoff` | Warning + optional end-of-turn handoff guard; reusable skill |
-| `pdf` | Claude PDF-to-text hook; scans and extraction failures use original PDF |
+| `pdf` | Claude Read hook: PDF to text (pypdf, then markitdown, then pdftotext); `.docx .pptx .xlsx .xls .epub` to Markdown via markitdown. Scans, missing tools and failures use the original file |
+| `markitdown` | Skill for explicit conversion of any markitdown-supported format (HTML, CSV/JSON/XML, ZIP, images, audio, YouTube) with the `markitdown` CLI |
 | `statusline` | Claude terminal context display and window telemetry |
 | `rules` | Short workflow rules in a delimited block; other text retained |
 | `setup` | Guided setup skill backed by this CLI |

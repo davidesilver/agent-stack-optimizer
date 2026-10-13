@@ -218,5 +218,34 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(logs[0].read_text(), "fixture error\n")
 
 
+    def _run_pdf_hook(self, target, path_dirs=None):
+        env = {**os.environ, "HOME": str(self.home), "USERPROFILE": str(self.home)}
+        if path_dirs is not None:
+            env["PATH"] = os.pathsep.join(path_dirs)
+        payload = json.dumps({"tool_name": "Read", "tool_input": {"file_path": str(target)}})
+        return subprocess.run([sys.executable, str(ROOT / "hooks" / "pdf_to_text.py")], input=payload,
+                              capture_output=True, text=True, env=env)
+
+    def test_pdf_hook_converts_office_with_markitdown_and_falls_back_without_it(self):
+        doc = self.home / "report.docx"
+        doc.write_bytes(b"PK fixture")
+        bin_dir = self.home / "fakebin"
+        bin_dir.mkdir()
+        if os.name == "nt":
+            (bin_dir / "markitdown.cmd").write_text("@echo # converted fixture\r\n")
+        else:
+            fake = bin_dir / "markitdown"
+            fake.write_text("#!/bin/sh\necho '# converted fixture'\n")
+            fake.chmod(0o755)
+        r = self._run_pdf_hook(doc, [str(bin_dir), os.path.dirname(sys.executable)])
+        self.assertEqual(r.returncode, 0)
+        out = json.loads(r.stdout)["hookSpecificOutput"]["updatedInput"]["file_path"]
+        self.assertIn("converted fixture", Path(out).read_text(encoding="utf-8"))
+        other = self.home / "other.docx"
+        other.write_bytes(b"PK other")
+        r = self._run_pdf_hook(other, [os.path.dirname(sys.executable)])
+        self.assertEqual((r.returncode, r.stdout), (0, ""))  # no markitdown: native Read proceeds
+
+
 if __name__ == "__main__":
     unittest.main()
