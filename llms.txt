@@ -1,0 +1,13 @@
+# Agent Stack Optimizer
+
+> Reversible, dependency-free setup for Claude Code and Codex that reduces token usage: context-threshold handoff guard, PDF/Office-to-text Read hook (markitdown), statusline, audit, usage reports and rollback.
+
+## Docs
+- [README](README.md): install, modules, flags, rollback, FAQ
+- [Design](docs/design.md): architecture and decisions
+- [Implementation plan](docs/implementation-plan.md)
+
+## Code
+- [stack.py](stack.py): CLI (audit, setup, check, report, run, backups, rollback)
+- [hooks/](hooks): handoff guard, PDF/Office Read hook, statusline
+- [skills/](skills): handoff, setup, markitdown

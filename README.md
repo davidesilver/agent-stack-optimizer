@@ -1,6 +1,27 @@
 # Agent Stack Optimizer
 
-A small, reversible setup for Claude Code and Codex. Choose context thresholds, audit your configuration, keep original command output, and measure actual token usage. No automatic model switching and no blanket installation of skills or MCP servers.
+[![Tests](https://github.com/davidesilver/agent-stack-optimizer/actions/workflows/tests.yml/badge.svg)](https://github.com/davidesilver/agent-stack-optimizer/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+
+**Reduce token usage in Claude Code and Codex with a small, reversible, dependency-free setup:** context-threshold handoff guard, PDF/Word/Excel-to-text Read hook (with [markitdown](https://github.com/microsoft/markitdown)), statusline, audit, usage reports and one-command rollback. No automatic model switching and no blanket installation of skills or MCP servers.
+
+## What it does
+
+- **Handoff guard:** warns at a context threshold you choose, optionally saves a handoff at the end of a turn, so you start a fresh session instead of paying for a bloated one.
+- **Read hook:** PDFs and Office files (`.docx .pptx .xlsx .xls .epub`) are read as extracted text instead of binary or page images. Scans and failures fall back to the original file.
+- **Audit and reports:** see what is configured and measure real input/cache/output tokens per session, for Claude and Codex.
+- **Reversible:** every change is backed up with hashes; `rollback` restores the previous state.
+
+## How it compares
+
+| Tool | Focus | Relation to this project |
+|---|---|---|
+| [RTK](https://github.com/rtk-ai/rtk) | Filters command output before the agent reads it | Optional filter via `stack.py run --filter rtk` |
+| [ccusage](https://github.com/ryoppippi/ccusage) | Reads Claude Code logs to show usage and cost | Complementary; `stack.py report` also covers Codex |
+| [context-mode](https://github.com/mksglu/context-mode) | Retrieves relevant parts of large outputs | Optional, not bundled |
+| This project | Thresholds, handoff, input conversion, audit, rollback | Setup layer that keeps your existing config |
+
 
 ## Requirements
 
@@ -91,6 +112,18 @@ Tests use isolated homes and synthetic logs:
 ```sh
 python3 -m unittest discover -s tests -v
 ```
+
+## FAQ
+
+**How do I reduce Claude Code token usage?** Keep sessions short (one task each), hand off at a threshold instead of compacting, read documents as text rather than images, and measure before and after. This tool automates those steps and does not claim savings you have not measured.
+
+**Does it work with Codex?** Yes for the handoff guard, skills and reports. The Read hook and statusline are Claude Code only. Codex requires you to approve hooks with `/hooks`.
+
+**Can I undo it?** Yes: `python3 stack.py backups`, then `rollback BACKUP_ID`. Interrupted installs keep a recovery manifest.
+
+**Will it change my model or settings?** No. Model, effort, MCP servers, custom skills and third-party hooks are retained.
+
+**Does it convert Word and Excel files?** Yes, through Microsoft markitdown when it is installed: `uv tool install "markitdown[pdf,docx,pptx,xlsx,xls,outlook]"`.
 
 ## Sources
 
