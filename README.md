@@ -18,7 +18,7 @@
 | Tool | Focus | Relation to this project |
 |---|---|---|
 | [RTK](https://github.com/rtk-ai/rtk) | Filters command output before the agent reads it | Optional filter via `stack.py run --filter rtk` |
-| [ccusage](https://github.com/ryoppippi/ccusage) | Reads Claude Code logs to show usage and cost | Complementary; `stack.py report` also covers Codex |
+| [ccusage](https://github.com/ccusage/ccusage) | Reads Claude Code logs to show usage and cost | Complementary; `stack.py report` also covers Codex |
 | [context-mode](https://github.com/mksglu/context-mode) | Retrieves relevant parts of large outputs | Optional, not bundled |
 | This project | Thresholds, handoff, input conversion, audit, rollback | Setup layer that keeps your existing config |
 
