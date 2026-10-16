@@ -99,6 +99,18 @@ python3 stack.py report --days 7 --compare /tmp/before.json
 
 Reports show anonymized session keys and input/cache/output counters separately per agent, plus durations/exit codes for commands run through this tool. Codex input includes cached input; Claude reports it separately. Codex cumulative snapshots are not summed, and Claude repeated message IDs use the latest usage record. Session totals are not the current context size. Billing, correctness and task completion are not inferred from token counts or successful process exits. Compare matched tasks and periods before claiming savings.
 
+## Optional Claude Code mods
+
+Mods (Claude Code 2.1.287+) are separate plugins and are **not** bundled or installed by this project. Read a mod's code before enabling it: mods run with your permissions. Judged by whether they reduce token cost:
+
+| Mod | Effect | Verdict |
+|---|---|---|
+| [cache-tax](https://github.com/karanb192/cache-tax) | Warns before, or drops once, a message sent to a cold prompt cache and shows the rewrite cost | Useful. Use `/cache-tax guard warn`; its `keepwarm` pings cost tokens |
+| [blast-radius](https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/blast-radius) | Holds `rm -rf`, `git reset --hard`, force push and migrations and shows what they would touch | Safety, no token savings |
+| [filetree](https://github.com/data-goblin/claude-code-filetree) and Savvy Progress | Show files touched, progress and subagent cost | Visibility only, no savings |
+
+Load a local mod with `claude --plugin-dir <path>`, or persistently through `env.CLAUDE_CODE_PLUGIN_DIRS` in `settings.json` (path-separated list).
+
 ## Optional indexing
 
 Use your existing graph/index tooling first. [context-mode](https://github.com/mksglu/context-mode) can retrieve relevant portions of large outputs; it has its own ELv2 license and is not bundled. [code-review-graph](https://pypi.org/project/code-review-graph/) is another candidate for code indexing; verify the source and overlap before integrating. These tools are not installed by the core setup.
