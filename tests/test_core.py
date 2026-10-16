@@ -49,6 +49,15 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(snapshot, {str(x.relative_to(self.home)): x.read_bytes() for x in self.home.rglob("*") if x.is_file()})
         self.assertTrue((self.home / f".config/ai-config/backups/{first}/manifest.json").exists())
 
+    def test_audit_counts_mod_dirs_without_values(self):
+        from stacklib.audit import audit
+        p = self.home / ".claude/settings.json"
+        p.parent.mkdir()
+        p.write_text(json.dumps({"env": {"CLAUDE_CODE_PLUGIN_DIRS": os.pathsep.join(["/a", "/b"])}}))
+        r = audit(self.home)
+        self.assertEqual(r["integrations"]["claude_mod_dirs"], 2)
+        self.assertNotIn("/a", json.dumps(r))
+
     def test_dry_run_no_writes(self):
         self.install(dry=True)
         self.assertEqual(list(self.home.iterdir()), [])

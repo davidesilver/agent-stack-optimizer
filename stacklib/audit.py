@@ -1,4 +1,5 @@
 import hashlib
+import os
 import json
 import shutil
 import subprocess
@@ -10,7 +11,7 @@ from .install import command, read_json, owned
 def audit(home):
     home = Path(home)
     versions = {}
-    for tool in ("claude", "codex", "rtk", "graphify"):
+    for tool in ("claude", "codex", "rtk", "graphify", "markitdown"):
         exe = shutil.which(tool)
         if not exe:
             versions[tool] = "not installed"
@@ -38,6 +39,7 @@ def audit(home):
         # Counts only: never output credentials or environment values.
         if "settings" in path:
             integrations["claude_enabled_plugins"] = sum(bool(x) for x in d.get("enabledPlugins", {}).values())
+            integrations["claude_mod_dirs"] = len([x for x in str(d.get("env", {}).get("CLAUDE_CODE_PLUGIN_DIRS", "")).split(os.pathsep) if x])
     return {"versions": versions, "config": load(home), "skill_count": len(skills),
             "codex_duplicate_skills": duplicates, "rules": rules, "registered_hooks": hooks,
             "integrations": integrations, "note": "File sizes are not loaded token counts. Hook registration is not proof of execution. No settings values or transcript content exported."}
