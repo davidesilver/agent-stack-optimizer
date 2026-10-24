@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from stacklib.config import DEFAULT, validate
 from stacklib.install import install, command
 from stacklib.transaction import Transaction, rollback
-from stacklib.usage import last_context, summarize
+from stacklib.usage import last_context, summarize, rows
 
 
 def cfg(**context):
@@ -255,6 +255,19 @@ class CoreTests(unittest.TestCase):
         r = self._run_pdf_hook(other, [os.path.dirname(sys.executable)])
         self.assertEqual((r.returncode, r.stdout), (0, ""))  # no markitdown: native Read proceeds
 
+
+
+    def test_rows_yields_only_valid_dicts(self):
+        p = self.home / "mixed_json.jsonl"
+        with p.open("wb") as f:
+            f.write(b'{"valid": "dict"}\n')
+            f.write(b'[1, 2, 3]\n')
+            f.write(b'{"missing_quote: }\n')
+            f.write(b'\x80\n')
+            f.write(b'{"valid": "dict2"}\n')
+
+        result = list(rows(p))
+        self.assertEqual(result, [{"valid": "dict"}, {"valid": "dict2"}])
 
 if __name__ == "__main__":
     unittest.main()
