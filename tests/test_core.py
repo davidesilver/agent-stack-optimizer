@@ -197,6 +197,37 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(metadata["exit_code"], 9)
         self.assertGreaterEqual(metadata["duration_seconds"], 0)
 
+
+    def test_last_context_edge_cases_missing_fields(self):
+        p_codex = self.home / "codex_edge.jsonl"
+        codex_lines = [
+            {},
+            {"payload": None},
+            {"payload": {"type": "other"}},
+            {"payload": {"type": "token_count", "info": None}},
+            {"payload": {"type": "token_count", "info": {"model_context_window": 100}}},
+            {"payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 10}}}},
+            {"payload": {"type": "token_count", "info": {"last_token_usage": {"other": 1}, "model_context_window": 200}}},
+            {"payload": {"type": "token_count", "info": {"last_token_usage": None}}},
+        ]
+        p_codex.write_text("\n".join(json.dumps(d) for d in codex_lines) + "\n")
+        self.assertEqual(last_context(p_codex, "codex"), (0, 200))
+
+        p_claude = self.home / "claude_edge.jsonl"
+        claude_lines = [
+            {},
+            {"context_window": None},
+            {"model_context_window": 300},
+            {"context_window": {"context_window_size": 400}},
+            {"message": None},
+            {"message": {"usage": None}},
+            {"message": {"usage": {"input_tokens": 10, "cache_creation_input_tokens": None, "cache_read_input_tokens": 5}}},
+            {"message": {"usage": {"context_window_size": 500, "input_tokens": 20}}},
+            {"model_context_window": 600, "message": {"usage": {}}},
+        ]
+        p_claude.write_text("\n".join(json.dumps(d) for d in claude_lines) + "\n")
+        self.assertEqual(last_context(p_claude, "claude"), (20, 500))
+
     def test_codex_cumulative_usage_is_not_double_counted(self):
         p = self.transcript()
         first = p.read_text()
