@@ -5,6 +5,8 @@ import os
 import subprocess
 import sys
 import tempfile
+from unittest import mock
+import time
 import unittest
 from pathlib import Path
 
@@ -13,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 from stacklib.config import DEFAULT, validate
 from stacklib.install import install, command
 from stacklib.transaction import Transaction, rollback
+from hooks.pdf_to_text import clean_cache, MAX_AGE_DAYS
 from stacklib.usage import last_context, summarize
 
 
@@ -33,6 +36,32 @@ class CoreTests(unittest.TestCase):
     def install(self, config=None, dry=False):
         with contextlib.redirect_stdout(io.StringIO()):
             return install(self.home, config or cfg(), dry)
+
+
+    def test_clean_cache_removes_only_old_files(self):
+        cutoff = time.time() - MAX_AGE_DAYS * 86400
+
+        cache_dir = self.home / ".claude" / "pdf-text-cache"
+        cache_dir.mkdir(parents=True)
+
+        with mock.patch("hooks.pdf_to_text.CACHE", cache_dir):
+            old_file = cache_dir / "old.txt"
+            old_file.write_text("old")
+            os.utime(old_file, (cutoff - 100, cutoff - 100))
+
+            new_file = cache_dir / "new.txt"
+            new_file.write_text("new")
+            os.utime(new_file, (cutoff + 100, cutoff + 100))
+
+            non_txt_file = cache_dir / "old.not_txt"
+            non_txt_file.write_text("not txt")
+            os.utime(non_txt_file, (cutoff - 100, cutoff - 100))
+
+            clean_cache()
+
+            self.assertFalse(old_file.exists())
+            self.assertTrue(new_file.exists())
+            self.assertTrue(non_txt_file.exists())
 
     def test_install_preserves_shared_hooks_model_and_is_idempotent(self):
         p = self.home / ".claude/settings.json"
