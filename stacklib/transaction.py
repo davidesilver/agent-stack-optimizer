@@ -48,6 +48,7 @@ class Transaction:
         self.root = self.home / ".config" / "ai-config" / "backups" / self.id
         safe_path(self.home, self.root.relative_to(self.home))
         self.manifest = {"schema": 1, "id": self.id, "status": "in-progress", "files": []}
+        self._written_paths = set()
 
     def save_manifest(self):
         atomic_write(self.root / "manifest.json", json.dumps(self.manifest, indent=2).encode())
@@ -61,14 +62,16 @@ class Transaction:
         print(("[dry-run] " if self.dry else "") + f"Update {p.relative_to(self.home)}")
         if self.dry:
             return
-        if any(f["path"] == str(p.relative_to(self.home)) for f in self.manifest["files"]):
+        path_str = str(p.relative_to(self.home))
+        if path_str in self._written_paths:
             raise ValueError("Duplicate write in transaction")
         index = len(self.manifest["files"])
         if before is not None:
             atomic_write(self.root / f"{index}.bak", before)
-        self.manifest["files"].append({"path": str(p.relative_to(self.home)), "before": digest(before),
+        self.manifest["files"].append({"path": path_str, "before": digest(before),
                                       "after": digest(data), "backup": f"{index}.bak" if before is not None else None,
                                       "mode": p.stat().st_mode & 0o777 if p.exists() else 0o600})
+        self._written_paths.add(path_str)
         self.save_manifest()  # recovery information exists before changing target
         if data is None:
             p.unlink(missing_ok=True)
