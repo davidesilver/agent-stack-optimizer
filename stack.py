@@ -93,8 +93,8 @@ def run_command(args, home):
     root.mkdir(parents=True, exist_ok=True)
     p = root / (uuid.uuid4().hex + ".log")
     started = time.monotonic()
-    with p.open("xb") as f:
-        os.chmod(p, 0o600)
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with open(fd, "wb") as f:
         try:
             result = subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT)
         except FileNotFoundError:
@@ -122,8 +122,8 @@ def run_command(args, home):
                 "displayed_bytes": filtered_bytes if displayed else p.stat().st_size,
                 "filter": "rtk" if displayed else "raw"}
     mp = p.with_suffix(".json")
-    with mp.open("x") as f:
-        os.chmod(mp, 0o600)
+    fd = os.open(mp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with open(fd, "w") as f:
         json.dump(metadata, f, indent=2)
     return result.returncode if result.returncode >= 0 else 128 - result.returncode
 
