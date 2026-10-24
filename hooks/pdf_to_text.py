@@ -107,7 +107,9 @@ def main():
                     f"[Testo estratto da {pdf.name}: {pages} pagine, metodo {how}. Le immagini del PDF NON sono incluse. "
                     f"Per vedere grafici, firme o layout: esegui `touch ~/.claude/pdf-visual-once` e rileggi il PDF originale.]\n\n"
                 )
-            txt.write_text(header + body, encoding="utf-8")
+            fd = os.open(txt, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with open(fd, "w", encoding="utf-8") as f:
+                f.write(header + body)
         pages_note = txt.read_text(encoding="utf-8", errors="ignore")[:120]
         tool_input["file_path"] = str(txt)
         tool_input.pop("pages", None)
