@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from stacklib.config import DEFAULT, validate
 from stacklib.install import install, command
-from stacklib.transaction import Transaction, rollback
+from stacklib.transaction import rollback
 from stacklib.usage import last_context, summarize
 
 
