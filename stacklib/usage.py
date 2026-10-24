@@ -39,43 +39,55 @@ def last_context(path, agent):
     return result
 
 
-def summarize(path, agent):
+def _summarize_codex(path):
     total = {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0, "reasoning": 0, "requests": 0}
     initial = None
+    latest = None
+    for d in rows(path):
+        payload = d.get("payload") or {}
+        if payload.get("type") != "token_count":
+            continue
+        info = payload.get("info") or {}
+        if initial is None and info.get("last_token_usage"):
+            initial = info["last_token_usage"].get("input_tokens", 0)
+        if info.get("total_token_usage"):
+            latest = info["total_token_usage"]
+    if latest:
+        total.update(input=latest.get("input_tokens", 0), cache_read=latest.get("cached_input_tokens", 0),
+                     cache_write=latest.get("cache_write_input_tokens", 0), output=latest.get("output_tokens", 0),
+                     reasoning=latest.get("reasoning_output_tokens", 0))
+    # Codex input includes cached input; cache_read is a subset. Request count is unavailable.
+    return total, initial
+
+
+def _summarize_default(path):
+    total = {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0, "reasoning": 0, "requests": 0}
+    initial = None
+    seen = {}
+    anonymous = []
+    for d in rows(path):
+        m = d.get("message") or {}
+        u = m.get("usage")
+        if not u:
+            continue
+        if initial is None:
+            initial = sum(u.get(k, 0) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+        # Streaming updates repeat message IDs; latest values replace earlier partial usage.
+        if m.get("id"):
+            seen[m["id"]] = u
+        else:
+            anonymous.append(u)
+    for u in [*seen.values(), *anonymous]:
+        for dst, key in (("input", "input_tokens"), ("cache_read", "cache_read_input_tokens"),
+                         ("cache_write", "cache_creation_input_tokens"), ("output", "output_tokens")):
+            total[dst] += u.get(key, 0) or 0
+        total["requests"] += 1
+    return total, initial
+
+
+def summarize(path, agent):
     if agent == "codex":
-        latest = None
-        for d in rows(path):
-            payload = d.get("payload") or {}
-            if payload.get("type") != "token_count":
-                continue
-            info = payload.get("info") or {}
-            if initial is None and info.get("last_token_usage"):
-                initial = info["last_token_usage"].get("input_tokens", 0)
-            if info.get("total_token_usage"):
-                latest = info["total_token_usage"]
-        if latest:
-            total.update(input=latest.get("input_tokens", 0), cache_read=latest.get("cached_input_tokens", 0),
-                         cache_write=latest.get("cache_write_input_tokens", 0), output=latest.get("output_tokens", 0),
-                         reasoning=latest.get("reasoning_output_tokens", 0))
-        # Codex input includes cached input; cache_read is a subset. Request count is unavailable.
+        total, initial = _summarize_codex(path)
     else:
-        seen = {}
-        anonymous = []
-        for d in rows(path):
-            m = d.get("message") or {}
-            u = m.get("usage")
-            if not u:
-                continue
-            if initial is None:
-                initial = sum(u.get(k, 0) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
-            # Streaming updates repeat message IDs; latest values replace earlier partial usage.
-            if m.get("id"):
-                seen[m["id"]] = u
-            else:
-                anonymous.append(u)
-        for u in [*seen.values(), *anonymous]:
-            for dst, key in (("input", "input_tokens"), ("cache_read", "cache_read_input_tokens"),
-                             ("cache_write", "cache_creation_input_tokens"), ("output", "output_tokens")):
-                total[dst] += u.get(key, 0) or 0
-            total["requests"] += 1
+        total, initial = _summarize_default(path)
     return {"agent": agent, **total, "initial_context": initial}
