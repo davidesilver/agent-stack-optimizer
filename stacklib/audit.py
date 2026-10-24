@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from .config import load
-from .install import command, read_json, owned
+from .install import command, read_json
 
 
 def audit(home):
