@@ -66,12 +66,17 @@ def extract(pdf: Path):
 
 def clean_cache():
     cutoff = time.time() - MAX_AGE_DAYS * 86400
-    for f in CACHE.glob("*.txt"):
-        try:
-            if f.stat().st_mtime < cutoff:
-                f.unlink()
-        except OSError:
-            pass
+    try:
+        with os.scandir(CACHE) as it:
+            for entry in it:
+                if entry.name.endswith(".txt") and entry.is_file(follow_symlinks=False):
+                    try:
+                        if entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                            os.unlink(entry.path)
+                    except OSError:
+                        pass
+    except OSError:
+        pass
 
 
 def main():
