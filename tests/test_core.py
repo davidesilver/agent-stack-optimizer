@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from stacklib.config import DEFAULT, validate
-from stacklib.install import install, command
+from stacklib.install import install, command, read_json
 from stacklib.transaction import Transaction, rollback
 from stacklib.usage import last_context, summarize
 
@@ -255,6 +255,13 @@ class CoreTests(unittest.TestCase):
         r = self._run_pdf_hook(other, [os.path.dirname(sys.executable)])
         self.assertEqual((r.returncode, r.stdout), (0, ""))  # no markitdown: native Read proceeds
 
+
+
+    def test_read_json_raises_value_error_for_non_dict(self):
+        p = self.home / "test.json"
+        p.write_text("[]")
+        with self.assertRaisesRegex(ValueError, "Expected JSON object: test.json"):
+            read_json(p)
 
 if __name__ == "__main__":
     unittest.main()
