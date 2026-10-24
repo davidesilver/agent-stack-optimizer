@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from stacklib.config import DEFAULT, validate
 from stacklib.install import install, command
-from stacklib.transaction import Transaction, rollback
+from stacklib.transaction import Transaction, rollback, atomic_write
 from stacklib.usage import last_context, summarize
 
 
@@ -33,6 +33,17 @@ class CoreTests(unittest.TestCase):
     def install(self, config=None, dry=False):
         with contextlib.redirect_stdout(io.StringIO()):
             return install(self.home, config or cfg(), dry)
+
+    def test_atomic_write_cleans_up_temp_file_on_error(self):
+        p = self.home / "test_file.txt"
+        with self.assertRaises(TypeError):
+            atomic_write(p, None)
+
+        # Verify no temp files remain
+        tmps = list(self.home.glob("test_file.txt.tmp-*"))
+        self.assertEqual(tmps, [])
+        # Verify original file wasn't created
+        self.assertFalse(p.exists())
 
     def test_install_preserves_shared_hooks_model_and_is_idempotent(self):
         p = self.home / ".claude/settings.json"
