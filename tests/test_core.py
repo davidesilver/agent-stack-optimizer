@@ -14,6 +14,11 @@ from stacklib.config import DEFAULT, validate
 from stacklib.install import install, command
 from stacklib.transaction import Transaction, rollback
 from stacklib.usage import last_context, summarize
+import argparse
+from unittest.mock import patch
+import stack
+from stacklib.config import load
+
 
 
 def cfg(**context):
@@ -29,6 +34,93 @@ class CoreTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+
+    def test_setup_arguments(self):
+        args = argparse.Namespace(
+            interactive=False,
+            agents="claude",
+            modules="setup",
+            unit="tokens",
+            warn=100.0,
+            max=300.0,
+            mode="warn",
+            window_tokens=8000,
+            dry_run=False
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            stack.setup(args, self.home)
+
+        c = load(self.home)
+        self.assertEqual(c["agents"], ["claude"])
+        self.assertEqual(c["modules"], ["setup"])
+        self.assertEqual(c["context"]["unit"], "tokens")
+        self.assertEqual(c["context"]["warn"], 100.0)
+        self.assertEqual(c["context"]["max"], 300.0)
+        self.assertEqual(c["context"]["mode"], "warn")
+        self.assertEqual(c["context"]["window_tokens"], 8000)
+
+    @patch('sys.stdin')
+    @patch('builtins.input')
+    def test_setup_interactive(self, mock_input, mock_stdin):
+        mock_stdin.isatty.return_value = True
+        mock_input.side_effect = ["claude", "setup", "tokens", "150.0", "400.0", "handoff", "9000"]
+
+        args = argparse.Namespace(
+            interactive=True,
+            agents=None,
+            modules=None,
+            unit=None,
+            warn=None,
+            max=None,
+            mode=None,
+            window_tokens=None,
+            dry_run=False
+        )
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            stack.setup(args, self.home)
+
+        c = load(self.home)
+        self.assertEqual(c["agents"], ["claude"])
+        self.assertEqual(c["modules"], ["setup"])
+        self.assertEqual(c["context"]["unit"], "tokens")
+        self.assertEqual(c["context"]["warn"], 150.0)
+        self.assertEqual(c["context"]["max"], 400.0)
+        self.assertEqual(c["context"]["mode"], "handoff")
+        self.assertEqual(c["context"]["window_tokens"], 9000)
+
+    @patch('sys.stdin')
+    def test_setup_interactive_requires_tty(self, mock_stdin):
+        mock_stdin.isatty.return_value = False
+        args = argparse.Namespace(
+            interactive=True,
+            agents=None,
+            modules=None,
+            unit=None,
+            warn=None,
+            max=None,
+            mode=None,
+            window_tokens=None,
+            dry_run=False
+        )
+        with self.assertRaisesRegex(ValueError, "Interactive setup requires a terminal"):
+            stack.setup(args, self.home)
+
+    def test_setup_unit_change_validation(self):
+        args = argparse.Namespace(
+            interactive=False,
+            agents=None,
+            modules=None,
+            unit="tokens",
+            warn=None,
+            max=None,
+            mode=None,
+            window_tokens=None,
+            dry_run=False
+        )
+        with self.assertRaisesRegex(ValueError, "Changing context units requires both --warn and --max"):
+            stack.setup(args, self.home)
 
     def install(self, config=None, dry=False):
         with contextlib.redirect_stdout(io.StringIO()):
