@@ -51,12 +51,13 @@ def check(home):
     modules = set(cfg["modules"])
     for agent in cfg["agents"]:
         d = read_json(Path(home) / f".{agent}" / ("settings.json" if agent == "claude" else "hooks.json"))
+        expected = command("handoff_guard.py", agent)
         for event in ("UserPromptSubmit", "Stop"):
-            expected = command("handoff_guard.py", agent)
             registered = any(h.get("command") == expected for e in d.get("hooks", {}).get(event, []) for h in e.get("hooks", []))
             results.append({"check": f"{agent} {event}", "ok": registered == ("handoff" in modules)})
         if agent == "claude" and "pdf" in modules:
-            registered = any(h.get("command") == command("pdf_to_text.py") for e in d.get("hooks", {}).get("PreToolUse", []) if e.get("matcher") == "Read" for h in e.get("hooks", []))
+            expected_pdf = command("pdf_to_text.py")
+            registered = any(h.get("command") == expected_pdf for e in d.get("hooks", {}).get("PreToolUse", []) if e.get("matcher") == "Read" for h in e.get("hooks", []))
             results.append({"check": "claude PDF hook", "ok": registered})
             results.append({"check": "PDF extractor installed", "ok": bool(shutil.which("pdftotext") or __import__("importlib.util", fromlist=["find_spec"]).find_spec("pypdf"))})
         if agent == "claude" and "markitdown" in modules:
