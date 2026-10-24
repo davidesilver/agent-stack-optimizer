@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Portable setup, audit, telemetry and reversible changes for coding agents."""
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -59,7 +60,6 @@ def report(args, home):
                 continue
             row = summarize(p, agent)
             # Stable anonymous key, never include transcript paths or task text.
-            import hashlib
             row["session"] = hashlib.sha256(str(p.relative_to(home)).encode()).hexdigest()[:16]
             sessions.append(row)
     runs = []
