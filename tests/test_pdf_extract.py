@@ -11,22 +11,30 @@ import pdf_to_text
 
 class TestPdfExtract(unittest.TestCase):
     def setUp(self):
-        # Create a simple PDF for testing
-        from pypdf import PdfWriter
-        writer = PdfWriter()
-        writer.add_blank_page(width=72, height=72)
+        # Create a simple dummy PDF for testing
         self.pdf_path = Path("test_blank.pdf")
-        with open(self.pdf_path, "wb") as f:
-            writer.write(f)
+        self.pdf_path.write_text("dummy content")
 
     def tearDown(self):
         if self.pdf_path.exists():
             self.pdf_path.unlink()
 
     def test_extract_pypdf(self):
-        pages, body, method = pdf_to_text.extract(self.pdf_path)
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "mocked pdf text"
+        mock_reader_instance = MagicMock()
+        mock_reader_instance.pages = [mock_page]
+        mock_reader_class = MagicMock(return_value=mock_reader_instance)
+
+        mock_pypdf = MagicMock()
+        mock_pypdf.PdfReader = mock_reader_class
+
+        with patch.dict("sys.modules", {"pypdf": mock_pypdf}):
+            pages, body, method = pdf_to_text.extract(self.pdf_path)
+
         self.assertEqual(pages, 1)
         self.assertIn("--- pagina 1 ---", body)
+        self.assertIn("mocked pdf text", body)
         self.assertEqual(method, "pypdf")
 
     @patch("pdf_to_text.markitdown")
@@ -34,14 +42,8 @@ class TestPdfExtract(unittest.TestCase):
         mock_markitdown.return_value = "markitdown success text\n\x0c"
 
         # We need to simulate pypdf failing. Since extract() does 'from pypdf import PdfReader',
-        # we can mock builtins.__import__ to raise an ImportError when 'pypdf' is imported.
-        original_import = __import__
-        def mocked_import(name, *args, **kwargs):
-            if name == "pypdf":
-                raise ImportError("Mocked ImportError for pypdf")
-            return original_import(name, *args, **kwargs)
-
-        with patch("builtins.__import__", side_effect=mocked_import):
+        # we mock sys.modules to return None for pypdf, which causes ImportError
+        with patch.dict("sys.modules", {"pypdf": None}):
             pages, body, method = pdf_to_text.extract(self.pdf_path)
 
         self.assertEqual(pages, 2) # string has one \x0c (form feed), so 1 + 1 = 2
@@ -60,13 +62,7 @@ class TestPdfExtract(unittest.TestCase):
         mock_process.stdout = "pdftotext output\f"
         mock_run.return_value = mock_process
 
-        original_import = __import__
-        def mocked_import(name, *args, **kwargs):
-            if name == "pypdf":
-                raise ImportError("Mocked ImportError for pypdf")
-            return original_import(name, *args, **kwargs)
-
-        with patch("builtins.__import__", side_effect=mocked_import):
+        with patch.dict("sys.modules", {"pypdf": None}):
             pages, body, method = pdf_to_text.extract(self.pdf_path)
 
         self.assertEqual(pages, 2) # string has one \f, so 1 + 1 = 2
@@ -85,13 +81,7 @@ class TestPdfExtract(unittest.TestCase):
         mock_markitdown.return_value = "" # markitdown fails
         mock_which.return_value = None # pdftotext not found
 
-        original_import = __import__
-        def mocked_import(name, *args, **kwargs):
-            if name == "pypdf":
-                raise ImportError("Mocked ImportError for pypdf")
-            return original_import(name, *args, **kwargs)
-
-        with patch("builtins.__import__", side_effect=mocked_import):
+        with patch.dict("sys.modules", {"pypdf": None}):
             pages, body, method = pdf_to_text.extract(self.pdf_path)
 
         self.assertEqual(pages, 0)
