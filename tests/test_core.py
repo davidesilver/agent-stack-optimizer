@@ -255,6 +255,20 @@ class CoreTests(unittest.TestCase):
         r = self._run_pdf_hook(other, [os.path.dirname(sys.executable)])
         self.assertEqual((r.returncode, r.stdout), (0, ""))  # no markitdown: native Read proceeds
 
+    def test_report(self):
+        (self.home / ".claude/projects/test").mkdir(parents=True)
+        (self.home / ".claude/projects/test/test.jsonl").write_text(json.dumps({"message": {"usage": {"input_tokens": 10, "cache_read_input_tokens": 20, "output_tokens": 5}}}) + "\n")
+
+        (self.home / ".codex/sessions/test/test/test").mkdir(parents=True)
+        (self.home / ".codex/sessions/test/test/test/test.jsonl").write_text(json.dumps({"payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 10}, "total_token_usage": {"input_tokens": 10, "cached_input_tokens": 20, "output_tokens": 5}}}}) + "\n")
+
+        r = subprocess.run([sys.executable, str(ROOT / "stack.py"), "--home", str(self.home), "report"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+
+        out = json.loads(r.stdout)
+        sessions = sorted([s["agent"] for s in out["sessions"]])
+        self.assertEqual(sessions, ["claude", "codex"])
+        self.assertTrue(all("session" in s for s in out["sessions"]))
 
 if __name__ == "__main__":
     unittest.main()
