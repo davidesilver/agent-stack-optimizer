@@ -256,5 +256,27 @@ class CoreTests(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (0, ""))  # no markitdown: native Read proceeds
 
 
+
+    def test_statusline_get(self):
+        from unittest.mock import patch
+        with patch('sys.stdin', io.StringIO('{}')), patch('sys.stdout', io.StringIO()):
+            import hooks.statusline as sl
+
+        original_d = sl.d
+        try:
+            sl.d = {'a': {'b': {'c': 42}}}
+            self.assertEqual(sl.get('a', 'b', 'c'), 42)
+            self.assertIsNone(sl.get('a', 'b', 'd'))
+            self.assertIsNone(sl.get('x'))
+            self.assertIsNone(sl.get('a', 'b', 'c', 'd'))
+
+            sl.d = {'a': 'not a dict'}
+            self.assertIsNone(sl.get('a', 'b'))
+
+            sl.d = {}
+            self.assertIsNone(sl.get('a'))
+        finally:
+            sl.d = original_d
+
 if __name__ == "__main__":
     unittest.main()
