@@ -76,8 +76,15 @@ def report(args, home):
         r["comparison"] = {}
         for agent in ("claude", "codex"):
             def totals(rows):
-                selected = [x for x in rows if x["agent"] == agent]
-                return {"sessions": len(selected), **{k: sum(x.get(k, 0) for x in selected) for k in ("input", "cache_read", "cache_write", "output")}}
+                count = i = cr = cw = o = 0
+                for x in rows:
+                    if x.get("agent") == agent:
+                        count += 1
+                        i += x.get("input", 0)
+                        cr += x.get("cache_read", 0)
+                        cw += x.get("cache_write", 0)
+                        o += x.get("output", 0)
+                return {"sessions": count, "input": i, "cache_read": cr, "cache_write": cw, "output": o}
             r["comparison"][agent] = {"before": totals(previous["sessions"]), "after": totals(sessions)}
         r["notes"].append("Different tasks/periods are not evidence of optimization savings.")
     print(json.dumps(r, indent=2))
