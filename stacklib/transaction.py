@@ -25,13 +25,12 @@ def safe_path(home, relative):
         raise ValueError("Path outside home")
     return p
 
-
 def atomic_write(p, data):
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + ".tmp-" + uuid.uuid4().hex)
     try:
-        with tmp.open("xb") as f:
-            os.chmod(tmp, 0o600)
+        fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with open(fd, "wb") as f:
             f.write(data)
         if p.exists():
             os.chmod(tmp, p.stat().st_mode & 0o777)
