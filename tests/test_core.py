@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -213,6 +214,18 @@ class CoreTests(unittest.TestCase):
         p.write_text("\n".join(json.dumps({"message": {"id": "same", "usage": {"input_tokens": 10, "cache_read_input_tokens": 20, "output_tokens": output}}}) for output in (1, 5)))
         self.assertEqual(summarize(p, "claude")["output"], 5)
         self.assertEqual(last_context(p, "claude"), (30, None))
+
+
+    def test_command_quoting_for_different_os(self):
+        with unittest.mock.patch("os.name", "posix"):
+            cmd_posix = command("my script.py", "arg 1")
+            self.assertIn("'" + str(ROOT / "hooks" / "my script.py") + "'", cmd_posix)
+            self.assertIn("'arg 1'", cmd_posix)
+
+        with unittest.mock.patch("os.name", "nt"):
+            cmd_nt = command("my script.py", "arg 1")
+            self.assertIn('"' + str(ROOT / "hooks" / "my script.py") + '"', cmd_nt)
+            self.assertIn('"arg 1"', cmd_nt)
 
     @unittest.skipIf(os.name == "nt", "POSIX shell quoting test")
     def test_launcher_handles_spaces_and_missing_script(self):
