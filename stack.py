@@ -93,8 +93,8 @@ def run_command(args, home):
     root.mkdir(parents=True, exist_ok=True)
     p = root / (uuid.uuid4().hex + ".log")
     started = time.monotonic()
-    with p.open("xb") as f:
-        os.chmod(p, 0o600)
+    fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with open(fd, "wb") as f:
         try:
             result = subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT)
         except FileNotFoundError:
