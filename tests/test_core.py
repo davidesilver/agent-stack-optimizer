@@ -49,6 +49,102 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(snapshot, {str(x.relative_to(self.home)): x.read_bytes() for x in self.home.rglob("*") if x.is_file()})
         self.assertTrue((self.home / f".config/ai-config/backups/{first}/manifest.json").exists())
 
+    def test_long_session_strategy_validation(self):
+        c = cfg()
+        legacy = {k: v for k, v in c.items() if k != "long_sessions"}
+        validate(legacy)  # legacy config without the key stays valid
+        c["long_sessions"] = {"strategy": "jev-plugin", "external_data_ack": False, "plugin_status": "pending"}
+        with self.assertRaises(ValueError):
+            validate(c)  # no consent
+        c["long_sessions"]["external_data_ack"] = True
+        validate(c)  # pending with handoff mode is allowed: guard stays active
+        c["long_sessions"]["plugin_status"] = "active"
+        validate(c)
+        c["agents"] = ["codex"]
+        with self.assertRaises(ValueError):
+            validate(c)  # Claude Code only
+        c["agents"] = ["claude", "codex"]
+        c["long_sessions"] = {"strategy": "handoff", "external_data_ack": False, "plugin_status": "active"}
+        with self.assertRaises(ValueError):
+            validate(c)
+
+    def stack(self, *args, env=None):
+        return subprocess.run([sys.executable, str(ROOT / "stack.py"), "--home", str(self.home), *args],
+                              capture_output=True, text=True, env=env)
+
+    def saved(self):
+        return json.loads((self.home / ".config/ai-config/config.json").read_text())
+
+    def test_setup_jev_pending_then_active_then_back(self):
+        env = {**os.environ, "TYPESAFE_API_KEY": "sentinel-key-123"}
+        self.assertNotEqual(self.stack("setup", "--strategy", "jev-plugin", env=env).returncode, 0)  # consent denied
+        self.assertFalse((self.home / ".config/ai-config/config.json").exists())
+        ok = self.stack("setup", "--strategy", "jev-plugin", "--accept-external-data", env=env)
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        c = self.saved()
+        self.assertEqual(c["long_sessions"]["plugin_status"], "pending")
+        self.assertEqual(c["context"]["mode"], "handoff")  # guard policy untouched, both agents
+        self.assertEqual(c["agents"], ["claude", "codex"])
+        everything = "".join(p.read_text(errors="ignore") for p in self.home.rglob("*") if p.is_file()) + ok.stdout
+        self.assertNotIn("sentinel-key-123", everything)
+        self.assertFalse((self.home / ".claude/plugins").exists())
+        act = self.stack("setup", "--plugin-active")
+        self.assertEqual(act.returncode, 0, act.stderr)
+        self.assertEqual(self.saved()["long_sessions"]["plugin_status"], "active")
+        self.assertEqual(self.saved()["context"]["mode"], "handoff")  # stored policy still handoff
+        back = self.stack("setup", "--strategy", "handoff")
+        self.assertEqual(back.returncode, 0, back.stderr)
+        self.assertEqual(self.saved()["long_sessions"], {"strategy": "handoff", "external_data_ack": False, "plugin_status": "none"})
+        self.assertEqual(self.saved()["context"]["mode"], "handoff")
+
+    def test_plugin_active_requires_consent_and_dry_run_writes_nothing(self):
+        self.assertNotEqual(self.stack("setup", "--plugin-active", "--strategy", "handoff").returncode, 0)
+        self.assertNotEqual(self.stack("setup", "--plugin-active").returncode, 0)
+        r = self.stack("setup", "--strategy", "jev-plugin", "--accept-external-data", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.home / ".config/ai-config/config.json").exists())
+
+    def test_rollback_restores_config_after_strategy_change(self):
+        self.stack("setup")
+        before = self.saved()
+        r = self.stack("setup", "--strategy", "jev-plugin", "--accept-external-data")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        backups = sorted((self.home / ".config/ai-config/backups").glob("*/manifest.json"), key=lambda p: p.stat().st_mtime_ns)
+        self.assertTrue(backups)
+        bid = json.loads(backups[-1].read_text())["id"]
+        rb = self.stack("rollback", bid)
+        self.assertEqual(rb.returncode, 0, rb.stderr)
+        self.assertEqual(self.saved()["long_sessions"], before["long_sessions"])
+
+    def run_guard(self, agent, event, transcript, extra=None):
+        payload = {"hook_event_name": event, "transcript_path": str(transcript), "session_id": agent, **(extra or {})}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("AI_HANDOFF") and k != "AI_CTX_WINDOW"}
+        env["AI_CONFIG_HOME"] = str(self.home)
+        r = subprocess.run([sys.executable, str(ROOT / "hooks/handoff_guard.py"), agent], input=json.dumps(payload),
+                           capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout) if r.stdout else None
+
+    def claude_transcript(self):
+        p = self.home / "claude-session.jsonl"
+        p.write_text(json.dumps({"message": {"id": "m1", "usage": {"input_tokens": 400, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 5}}}) + "\n")
+        return p
+
+    def test_guard_policy_by_plugin_status(self):
+        c = cfg(unit="tokens", warn=100, max=200)
+        for status, claude_blocks in (("pending", True), ("active", False)):
+            c["long_sessions"] = {"strategy": "jev-plugin", "external_data_ack": True, "plugin_status": status}
+            self.install(c)
+            state = self.home / ".config/ai-config/runtime"
+            if state.exists():
+                for f in state.iterdir():
+                    f.unlink()
+            ct, xt = self.claude_transcript(), self.transcript()
+            claude = self.run_guard("claude", "Stop", ct)
+            codex = self.run_guard("codex", "Stop", xt)
+            self.assertEqual(bool(claude and claude.get("decision") == "block"), claude_blocks, status)
+            self.assertEqual(codex["decision"], "block", status)  # Codex policy never changes
+
     def test_audit_counts_mod_dirs_without_values(self):
         from stacklib.audit import audit
         p = self.home / ".claude/settings.json"
