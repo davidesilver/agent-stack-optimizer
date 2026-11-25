@@ -48,6 +48,8 @@ python3 stack.py setup --agents claude,codex --modules handoff,pdf,statusline,se
 python3 stack.py setup --unit tokens --warn 60000 --max 80000 --mode warn
 ```
 
+Long sessions: the default `--strategy handoff` keeps the thresholds above. `--strategy jev-plugin --accept-external-data` records the optional [fast-jev-compaction](docs/evaluations/fast-jev-compaction.md) alternative (Claude Code only) as pending: it sends conversation text to api.typesafe.ai and needs your own paid key, `setup` installs nothing and never touches a key, and the handoff guard keeps working until you confirm the plugin runs with `--plugin-active` (then the Claude guard only warns; Codex is unchanged).
+
 `--mode handoff` saves state at the end of a turn. `--mode warn` only warns. The maximum is an operational threshold: it cannot enlarge the model context window, stop a turn at an exact token, or prevent native auto-compaction. Thresholds may be exceeded during a turn. An absolute threshold can be used without knowing the model window.
 
 Claude window detection uses the client's statusline data; Codex uses session telemetry. If no window is available, percentage thresholds emit a one-time notice and do not trigger a handoff. `--window-tokens NUMBER` declares a window manually; `--window-tokens 0` restores detection. Legacy `AI_HANDOFF_WARN`, `AI_HANDOFF_FORCE` (fractions) and `AI_CTX_WINDOW` override saved policy when present. The tool does not change the client/model context settings.

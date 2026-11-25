@@ -10,7 +10,7 @@ import time
 import uuid
 from pathlib import Path
 from stacklib.audit import audit, check
-from stacklib.config import load, validate, MODULES
+from stacklib.config import load, validate, MODULES, STRATEGIES
 from stacklib.install import install
 from stacklib.transaction import rollback
 from stacklib.usage import summarize
@@ -35,6 +35,25 @@ def setup(args, home):
         if declared:
             p["window_tokens"] = int(declared) or None
         print("Max is an end-of-turn threshold, not a hard model-window limit.")
+        ls = c.setdefault("long_sessions", {"strategy": "handoff", "external_data_ack": False, "plugin_status": "none"})
+        print("Long sessions: 'handoff' starts a new chat at the thresholds (no external service).")
+        print("Alternative 'jev-plugin' (Claude Code only, optional, third-party): compaction decided by TypeSafe Jev.")
+        print("  It sends conversation text to api.typesafe.ai, needs your own paid TypeSafe key, and is outside rollback.")
+        print("  Choosing it only records the choice as pending: nothing is installed and the handoff guard keeps working.")
+        choice = input(f"Strategy handoff/jev-plugin [{ls['strategy']}]: ").strip() or ls["strategy"]
+        if choice == "jev-plugin":
+            ok = ls["strategy"] == "jev-plugin" and ls.get("external_data_ack") or \
+                input("Conversation text would leave this machine. Type yes to accept: ").strip().lower() == "yes"
+            if ok:
+                ls.update(strategy="jev-plugin", external_data_ack=True,
+                          plugin_status=ls.get("plugin_status") if ls.get("plugin_status") in {"pending", "active"} else "pending")
+                if ls["plugin_status"] == "pending" and input("Plugin installed and confirmed running in Claude Code? Type yes if so: ").strip().lower() == "yes":
+                    ls["plugin_status"] = "active"
+            else:
+                print("Consent not given: keeping the handoff strategy.")
+                ls.update(strategy="handoff", external_data_ack=False, plugin_status="none")
+        else:
+            ls.update(strategy="handoff", external_data_ack=False, plugin_status="none")
     if args.agents is not None:
         c["agents"] = args.agents.split(",")
     if args.modules is not None:
@@ -45,6 +64,20 @@ def setup(args, home):
         value = getattr(args, key)
         if value is not None:
             c["context"][key] = None if key == "window_tokens" and value == 0 else value
+    if args.plugin_active and args.strategy not in (None, "jev-plugin"):
+        raise ValueError("--plugin-active only applies to --strategy jev-plugin")
+    if args.strategy is not None or args.plugin_active:
+        ls = c.setdefault("long_sessions", {"strategy": "handoff", "external_data_ack": False, "plugin_status": "none"})
+        strategy = args.strategy or ls["strategy"]
+        if args.plugin_active and strategy != "jev-plugin":
+            raise ValueError("--plugin-active needs the jev-plugin strategy chosen first")
+        if strategy == "jev-plugin":
+            if not (args.accept_external_data or ls.get("external_data_ack")):
+                raise ValueError("jev-plugin sends conversation text to api.typesafe.ai: confirm with --accept-external-data")
+            ls.update(strategy="jev-plugin", external_data_ack=True)
+            ls["plugin_status"] = "active" if args.plugin_active else (ls.get("plugin_status") if ls.get("plugin_status") in {"pending", "active"} else "pending")
+        else:
+            ls.update(strategy="handoff", external_data_ack=False, plugin_status="none")
     validate(c)
     print(json.dumps(c, indent=2))
     install(home, c, args.dry_run)
@@ -141,6 +174,9 @@ def main():
     s.add_argument("--max", type=float)
     s.add_argument("--mode", choices=["warn", "handoff"])
     s.add_argument("--window-tokens", type=int, help="Manual declared window; 0 restores automatic detection")
+    s.add_argument("--strategy", choices=sorted(STRATEGIES), help="Long sessions: handoff (default) or optional jev-plugin")
+    s.add_argument("--plugin-active", action="store_true", help="Only after you installed the plugin and saw it run: the Claude guard then only warns")
+    s.add_argument("--accept-external-data", action="store_true", help="Required with jev-plugin: conversation text is sent to api.typesafe.ai")
     s.add_argument("--dry-run", action="store_true")
     sub.add_parser("audit")
     sub.add_parser("check")

@@ -128,6 +128,14 @@ def install(home, cfg, dry=False):
         if tx.manifest["files"] and not dry:
             print(f"Interrupted install; recover with rollback {tx.id}", file=sys.stderr)
         raise
+    ls = cfg.get("long_sessions", {})
+    if ls.get("strategy") == "jev-plugin":
+        print("jev-plugin chosen. Nothing was installed and no key was read or stored; this is outside rollback.")
+        if ls.get("plugin_status") == "active":
+            print("Status active: the Claude handoff guard only warns; Codex policy is unchanged.")
+        else:
+            print("Status pending: the handoff guard keeps its configured behavior until you confirm the plugin runs "
+                  "(setup --strategy jev-plugin --plugin-active).")
     if "codex" in cfg["agents"]:
         print("Codex: hook registration does not prove execution. Review /hooks in your installed client.")
     print("Existing model, effort, MCP servers and cache-timer configuration retained.")

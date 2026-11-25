@@ -31,6 +31,9 @@ def main():
         if "handoff" not in cfg["modules"] or agent not in cfg["agents"]:
             return
         p = cfg["context"]
+        ls = cfg.get("long_sessions", {})
+        if agent == "claude" and ls.get("strategy") == "jev-plugin" and ls.get("plugin_status") == "active":
+            p = {**p, "mode": "warn"}  # the confirmed plugin compacts; Codex keeps its own policy
         # Legacy environment settings remain supported; explicitly chosen overrides win.
         if "AI_HANDOFF_WARN" in os.environ or "AI_HANDOFF_FORCE" in os.environ:
             p.update(unit="percent", warn=float(os.environ.get("AI_HANDOFF_WARN", p["warn"] / 100)) * 100,
